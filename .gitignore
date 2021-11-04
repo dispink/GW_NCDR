@@ -3,3 +3,4 @@ results
 .ipynb_checkpoints/
 COMMIT_EDITMSG
 dask-worker-space
+__pycache__
