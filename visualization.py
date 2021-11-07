@@ -21,7 +21,7 @@ class Select():
 
     def __init__(
         self,
-        ep_dir = 'data/wl_EP_20211105.csv',
+        ep_dir = 'data/wl_EP_20211107.csv',
         wa_dir = 'data/database_ZAF_wa_merged_20211031.xlsx'
     ):
         self.ep_df = pd.read_csv(ep_dir)
@@ -57,17 +57,11 @@ class Select():
             for siteid in df['井號'].unique():
                 X = df[df['井號'] == siteid].copy()
                 # take the most recent data as the out put
-                out_df = pd.concat([out_df, X.iloc[-1, :]], join='outer', axis=0)
-                print(X['井號'].values[-1])
-                #print(self.ep_df['月'])
+                out_df = pd.concat([out_df, X.iloc[-1, :]], join='outer', axis=1)
                 mask = (self.ep_df['月'] == X['月'].values[-1]) & (self.ep_df['井號'] == str(X['井號'].values[-1]))
                 # find the slope of the measurements
                 p = np.polyfit(range(len(X)), X['水面至井口深度'], 1)
                 # the water level is at a decreasing or flat trend
-                #print(X['水面至井口深度'].values[-1])
-                #print('self')
-                print(X['水面至井口深度'].values[-1])
-                print(self.ep_df.loc[mask, criterias['decreasing'][criteria]])
                 if p[0] <= 0:
                     if X['水面至井口深度'].values[-1] > self.ep_df.loc[mask, criterias['decreasing'][criteria]].values[0]:
                         check_list.append('pass')
@@ -79,6 +73,7 @@ class Select():
                         check_list.append('pass')
                     else:
                         check_list.append('no')
+            out_df = out_df.T
             out_df['wl_check'] = check_list
             return out_df
         else:
@@ -171,12 +166,16 @@ class PlotWA():
 
 # test
 if __name__ == '__main__':
-    plot = PlotWA()
-    plot.plot(siteid=4413, std_name='再生水用於工業用途水質基礎建議值一', savefig=True)
+    #plot = PlotWA()
+    #plot.plot(siteid=4413, std_name='再生水用於工業用途水質基礎建議值一', savefig=True)
     #merge_df = pd.read_hdf('data/database_ZAF_clean_gps_20211104.hd5', key='wl')
     #mask = (merge_df['日期時間']>='2021-05-01') & (merge_df['日期時間']<'2021-05-15')
     #df = merge_df[mask].copy()
     #df.to_csv('data/test.csv', index=False)
-    #df = pd.read_csv('data/test.csv')
-    #select = Select()
-    #select.SitebyEP(df=df).to_csv('results/out.csv')
+    df = pd.read_csv('data/test.csv')
+    select = Select()
+    #out_df, check_list = 
+    select.SitebyEP(df=df).to_csv('results/out.csv')
+    #print(out_df.shape, len(check_list))
+    #with open('results/error.txt', 'w+', encoding='utf-8') as f:
+    #    print(out_df, file=f)
