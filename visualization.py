@@ -24,6 +24,7 @@ class Waterlvl():
         ep_dir = 'data/wl_EP_20211107.csv'
     ):
         self.ep_df = pd.read_csv(ep_dir)
+        self.ep_df['井號'] = self.ep_df['井號'].astype(str)
 
     def MarkbyEP(self, df, criteria='安全'):
         """
@@ -48,6 +49,7 @@ class Waterlvl():
                 '嚴重': '20'
             } 
         }
+        df['井號'] = df['井號'].astype(str)
         out_df = pd.DataFrame()
         check_list = []
         if criteria in criterias['decreasing'].keys():
@@ -56,9 +58,19 @@ class Waterlvl():
                 X = df[df['井號'] == siteid].copy()
                 # take the most recent data as the out put
                 out_df = pd.concat([out_df, X.iloc[-1, :]], join='outer', axis=1)
-                mask = (self.ep_df['月'] == X['月'].values[-1]) & (self.ep_df['井號'] == str(X['井號'].values[-1]))
+                mask = (self.ep_df['月'] == X['月'].values[-1]) & (self.ep_df['井號'] == X['井號'].values[-1])
+                # if there is no month EP in database
+                # find the closet month as an alternative
+                # if there are two closet months, choose the earlier one
+                if mask.sum() == 0:
+                    mon_tmp = self.ep_df.loc[self.ep_df['井號'] == X['井號'].values[-1], '月'].values
+                    mon_cal = (mon_tmp - X['月'].values[-1])**2
+                    mon_alt = mon_tmp[mon_cal.argmin()]
+                    mask = (self.ep_df['月'] == mon_alt) & (self.ep_df['井號'] == X['井號'].values[-1])
+
                 # find the slope of the measurements
                 p = np.polyfit(range(len(X)), X['水面至井口深度'], 1)
+                
                 # the water level is at a decreasing or flat trend
                 if p[0] <= 0:
                     if X['水面至井口深度'].values[-1] > self.ep_df.loc[mask, criterias['decreasing'][criteria]].values[0]:
@@ -114,7 +126,9 @@ class Waterquality():
         Set savefig to True when you wish to output the figures, which
         is in png format (200 dpi).
         """
-        if (siteid in self.wa_df['井號']) and (std_name in self.std_names):
+        import os
+
+        if (siteid in self.wa_df['井號'].unique()) and (std_name in self.std_names):
             # collect the analytes having value in the standard (std_name) and '日期'
             cols = np.hstack([self.std_df.loc[~self.std_df[std_name].isna(), '項目'], '日期'])
             # select the data points of that siteid
@@ -156,6 +170,10 @@ class Waterquality():
                 #plt.show()
                 # output figure when savefig is True
                 if savefig:
+                    if os.path.isdir(self.output_dir):
+                        pass
+                    else:
+                        os.mkdir(self.output_dir)
                     plt.savefig('{}{}_{}_{}.png'.format(self.output_dir, siteid, std_name, analyte))
         elif siteid in self.wa_df['井號']:
             print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
@@ -216,17 +234,17 @@ class Waterquality():
             print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
 # test
 if __name__ == '__main__':
-    #plot = PlotWA()
-    #plot.plot(siteid=4413, std_name='再生水用於工業用途水質基礎建議值一', savefig=True)
+    select = Waterquality()
+    select.plot(siteid='7010111', std_name='飲用水水源水質標準第五條', savefig=False)
     #merge_df = pd.read_hdf('data/database_ZAF_clean_gps_20211104.hd5', key='wl')
     #mask = (merge_df['日期時間']>='2021-05-01') & (merge_df['日期時間']<'2021-05-15')
     #df = merge_df[mask].copy()
     #df.to_csv('data/test.csv', index=False)
-    df = pd.read_csv('data/test.csv')
-    select = Waterlvl()
-    df = select.MarkbyEP(df=df)
+    #df = pd.read_csv('data/test.csv')
+    #select = Waterlvl()
+    #df = select.MarkbyEP(df=df)
     #print(out_df.shape, len(check_list))
     #with open('results/error.txt', 'w+', encoding='utf-8') as f:
     #    print(out_df, file=f)
-    select = Waterquality()
-    select.MarkbySTD(df=df, std_name='再生水用於工業用途水質基礎建議值一').to_csv('results/out.csv')
+    #select = Waterquality()
+    #select.MarkbySTD(df=df, std_name='再生水用於工業用途水質基礎建議值一').to_csv('results/out.csv')
