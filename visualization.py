@@ -130,11 +130,22 @@ class PlotWA():
             # and in the standard.
             X = X.loc[:, X.columns.isin(cols)]
             X = X.loc[:, X.any(axis=0)].copy()
-
-            for analyte in X.columns[:3]:
+            #with open('results/error.txt', 'w', encoding='utf-8') as f:
+            #        print(X.columns, file=f)
+            # the last one is '日期'
+            for analyte in X.columns[:-1]:
+                #with open('results/error.txt', 'a', encoding='utf-8') as f:
+                #    print(analyte, file=f)
                 unit = self.std_df.loc[self.std_df['項目'] == analyte, '單位'].values[0]
                 std_value = self.std_df.loc[self.std_df['項目'] == analyte, std_name].values[0]
-                mask = X[analyte] < std_value
+                # there are three different scenarios about the standard value
+                if analyte == '氫離子濃度指數':
+                    lo_lim, up_lim = [float(_) for _ in std_value.split('-')]
+                    mask = (X[analyte] >= lo_lim) & (X[analyte] <= up_lim)
+                elif analyte == '溶氧量':
+                    mask = X[analyte] > std_value
+                else:
+                    mask = X[analyte] < std_value
 
                 plt.figure(figsize=(7, 5))
                 plt.plot_date(X.loc[mask, '日期'], X.loc[mask, analyte], 
@@ -147,7 +158,7 @@ class PlotWA():
                 plt.suptitle('{}: {} {} ({})'.format(std_name, analyte, 
                                                      std_value, unit))
                 plt.subplots_adjust(top=.93)
-                plt.show()
+                #plt.show()
                 # output figure when savefig is True
                 if savefig:
                     plt.savefig('{}{}_{}_{}.png'.format(self.output_dir, siteid, std_name, analyte))
@@ -160,12 +171,12 @@ class PlotWA():
 
 # test
 if __name__ == '__main__':
-    #plot = PlotWA()
-    #plot.plot(siteid=4413, std_name='飲用水水源水質標準第五條', savefig=True)
+    plot = PlotWA()
+    plot.plot(siteid=4413, std_name='再生水用於工業用途水質基礎建議值一', savefig=True)
     #merge_df = pd.read_hdf('data/database_ZAF_clean_gps_20211104.hd5', key='wl')
     #mask = (merge_df['日期時間']>='2021-05-01') & (merge_df['日期時間']<'2021-05-15')
     #df = merge_df[mask].copy()
     #df.to_csv('data/test.csv', index=False)
-    df = pd.read_csv('data/test.csv')
-    select = Select()
-    select.SitebyEP(df=df).to_csv('results/out.csv')
+    #df = pd.read_csv('data/test.csv')
+    #select = Select()
+    #select.SitebyEP(df=df).to_csv('results/out.csv')
