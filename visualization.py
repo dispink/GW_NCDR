@@ -193,10 +193,10 @@ class Waterquality():
         """
         if std_name in self.std_names:
             df['井號'] = df['井號'].astype(str)
-            check = True
             check_list=[]
             out_df = pd.DataFrame()
             for siteid in df['井號'].unique():
+                check = True
                 # collect the analytes having value in the standard (std_name) and '日期'
                 cols = np.hstack([self.std_df.loc[~self.std_df[std_name].isna(), '項目'], '日期'])
                 # select the data points of that siteid
@@ -220,7 +220,7 @@ class Waterquality():
                             mask = X[analyte] < std_value
                         # if there more than 3 historical measurements not passing std
                         # in an analyte, this siteid will be marked "no"
-                        if ~mask.sum() > 3: 
+                        if (~mask).sum() > 3: 
                             check = False
                 else:
                     print('{} has no water quality measurement'.format(siteid))
