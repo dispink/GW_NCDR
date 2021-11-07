@@ -11,8 +11,78 @@ plt.style.use(['seaborn-colorblind', 'seaborn-talk'])
 plt.rcParams['figure.dpi'] = 200
 plt.rcParams['savefig.dpi'] = 200
 plt.rcParams['savefig.bbox'] = 'tight'
-plt.rcParams['font.sans-serif'] = ['Taipei Sans TC Beta'] # to plot Chinese words properly
+plt.rcParams['font.sans-serif'] = ['Taipei Sans TC Beta']
 
+class Select():
+    """
+    This a class to select sites that are having water level higher 
+    than the chosen criteria. 
+    """
+
+    def __init__(
+        self,
+        ep_dir = 'data/wl_EP_20211105.csv',
+        wa_dir = 'data/database_ZAF_wa_merged_20211031.xlsx'
+    ):
+        self.ep_df = pd.read_csv(ep_dir)
+        self.wa_df = pd.read_excel(wa_dir, parse_dates=['日期時間'])
+
+    def SitebyEP(self, df, criteria='安全'):
+        """
+        This a function to mark sites that are having water level 
+        higher than the chosen criteria. 
+        The input data should be a pd.DataFrame, which has at least 
+        columns of 日期時間, 井號, 水面至井口深度. Any extra columns 
+        will be output also after filtering.
+        The output is a pd.DataFrame consisting the information (taken
+        from the most recent data of each site) and the checked result
+        of the input sites.
+        """
+        criterias = {
+            'decreasing': {
+                '安全': '75',
+                '下限': '25',
+                '嚴重': '10'
+            },
+            'increasing': {
+                '安全': '85',
+                '下限': '35',
+                '嚴重': '20'
+            } 
+        }
+        out_df = pd.DataFrame()
+        check_list = []
+        if criteria in criterias['decreasing'].keys():
+            df = df.set_index('日期時間').sort_values('日期時間')
+            for siteid in df['井號'].unique():
+                X = df[df['井號'] == siteid].copy()
+                # take the most recent data as the out put
+                out_df = pd.concat([out_df, X.iloc[-1, :]], join='outer', axis=0)
+                print(X['井號'].values[-1])
+                #print(self.ep_df['月'])
+                mask = (self.ep_df['月'] == X['月'].values[-1]) & (self.ep_df['井號'] == str(X['井號'].values[-1]))
+                # find the slope of the measurements
+                p = np.polyfit(range(len(X)), X['水面至井口深度'], 1)
+                # the water level is at a decreasing or flat trend
+                #print(X['水面至井口深度'].values[-1])
+                #print('self')
+                print(X['水面至井口深度'].values[-1])
+                print(self.ep_df.loc[mask, criterias['decreasing'][criteria]])
+                if p[0] <= 0:
+                    if X['水面至井口深度'].values[-1] > self.ep_df.loc[mask, criterias['decreasing'][criteria]].values[0]:
+                        check_list.append('pass')
+                    else:
+                        check_list.append('no')
+                # the water level is at a increasing trend
+                else:
+                    if X['水面至井口深度'].values[-1] > self.ep_df.loc[mask, criterias['increasing'][criteria]].values[0]:
+                        check_list.append('pass')
+                    else:
+                        check_list.append('no')
+            out_df['wl_check'] = check_list
+            return out_df
+        else:
+            print('Please set the criteria in the list of {}'.format(criterias['decreasing'].keys()))        
 
 class PlotWA():
     """
@@ -25,17 +95,18 @@ class PlotWA():
     and stds_and_cols.xlsx.
     """
 
-    def __init__(self, 
-                 wa_dir = 'data/database_ZAF_wa_merged_20211031.xlsx',
-                 excel_dir = 'data/stds_and_cols.xlsx',
-                 output_dir = 'results/',
-                 excel_cols = ['項目', '單位', '飲用水水源水質標準第五條', 
-                    '飲用水水源水質標準第六條', '地下水污染監測標準第一類', 
-                    '地下水污染監測標準第二類', '地下水污染管制標準第一類', 
-                    '地下水污染管制標準第二類', '灌溉用水水質標準', 
-                    '再生水用於工業用途水質基礎建議值一', 
-                    '再生水用於工業用途水質基礎建議值二']
-                ):
+    def __init__(
+        self, 
+        wa_dir = 'data/database_ZAF_wa_merged_20211031.xlsx',
+        excel_dir = 'data/stds_and_cols.xlsx',
+        output_dir = 'results/',
+        excel_cols = ['項目', '單位', '飲用水水源水質標準第五條', 
+        '飲用水水源水質標準第六條', '地下水污染監測標準第一類', 
+        '地下水污染監測標準第二類', '地下水污染管制標準第一類', 
+        '地下水污染管制標準第二類', '灌溉用水水質標準', 
+        '再生水用於工業用途水質基礎建議值一', 
+        '再生水用於工業用途水質基礎建議值二']
+    ):
         self.wa_df = pd.read_excel(wa_dir, parse_dates=['日期時間'])
         self.wa_df['日期'] = pd.to_datetime([_.strftime('%Y-%m-%d') for _ in self.wa_df['日期時間']])
         self.std_df = pd.read_excel(excel_dir, usecols=excel_cols)
@@ -89,5 +160,12 @@ class PlotWA():
 
 # test
 if __name__ == '__main__':
-    plot = PlotWA()
-    plot.plot(siteid=4413, std_name='飲用水水源水質標準第五條', savefig=True)
+    #plot = PlotWA()
+    #plot.plot(siteid=4413, std_name='飲用水水源水質標準第五條', savefig=True)
+    #merge_df = pd.read_hdf('data/database_ZAF_clean_gps_20211104.hd5', key='wl')
+    #mask = (merge_df['日期時間']>='2021-05-01') & (merge_df['日期時間']<'2021-05-15')
+    #df = merge_df[mask].copy()
+    #df.to_csv('data/test.csv', index=False)
+    df = pd.read_csv('data/test.csv')
+    select = Select()
+    select.SitebyEP(df=df).to_csv('results/out.csv')
