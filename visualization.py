@@ -13,7 +13,7 @@ plt.rcParams['savefig.dpi'] = 200
 plt.rcParams['savefig.bbox'] = 'tight'
 plt.rcParams['font.sans-serif'] = ['Taipei Sans TC Beta']
 
-class Select():
+class Waterlvl():
     """
     This a class to select sites that are having water level higher 
     than the chosen criteria. 
@@ -21,19 +21,17 @@ class Select():
 
     def __init__(
         self,
-        ep_dir = 'data/wl_EP_20211107.csv',
-        wa_dir = 'data/database_ZAF_wa_merged_20211031.xlsx'
+        ep_dir = 'data/wl_EP_20211107.csv'
     ):
         self.ep_df = pd.read_csv(ep_dir)
-        self.wa_df = pd.read_excel(wa_dir, parse_dates=['日期時間'])
 
-    def SitebyEP(self, df, criteria='安全'):
+    def MarkbyEP(self, df, criteria='安全'):
         """
         This a function to mark sites that are having water level 
         higher than the chosen criteria. 
         The input data should be a pd.DataFrame, which has at least 
         columns of 日期時間, 井號, 水面至井口深度. Any extra columns 
-        will be output also after filtering.
+        will be output also after marking.
         The output is a pd.DataFrame consisting the information (taken
         from the most recent data of each site) and the checked result
         of the input sites.
@@ -64,30 +62,31 @@ class Select():
                 # the water level is at a decreasing or flat trend
                 if p[0] <= 0:
                     if X['水面至井口深度'].values[-1] > self.ep_df.loc[mask, criterias['decreasing'][criteria]].values[0]:
-                        check_list.append('pass')
+                        check_list.append(True)
                     else:
-                        check_list.append('no')
+                        check_list.append(False)
                 # the water level is at a increasing trend
                 else:
                     if X['水面至井口深度'].values[-1] > self.ep_df.loc[mask, criterias['increasing'][criteria]].values[0]:
-                        check_list.append('pass')
+                        check_list.append(True)
                     else:
-                        check_list.append('no')
+                        check_list.append(False)
             out_df = out_df.T
             out_df['wl_check'] = check_list
             return out_df
         else:
             print('Please set the criteria in the list of {}'.format(criterias['decreasing'].keys()))        
 
-class PlotWA():
+class Waterquality():
     """
-    This is a class to plot historical water quality by inputing 
-    siteid (井號) and std_name (法規名稱). The outputs are the figures 
-    of individual analyte with the marked color of passing standard
-    (法規) or not.
-    The visualization use the data in 
-    database_ZAF_wa_merged_20211031.xlsx
-    and stds_and_cols.xlsx.
+    This is a class to plot and filter the historical water quality by 
+    inputing siteid (井號) and std_name (法規名稱). The outputs are (1)
+    figures of individual analyte with the marked color of passing
+    standard (法規) or not and (2) a pd.DataFrame containing the 
+    boolean values (wa_check) as the mark of passing the selected 
+    standard. The class use the data in 
+    database_ZAF_wa_merged_20211031.xlsx and stds_and_cols.xlsx as 
+    the initials.
     """
 
     def __init__(
@@ -104,6 +103,7 @@ class PlotWA():
     ):
         self.wa_df = pd.read_excel(wa_dir, parse_dates=['日期時間'])
         self.wa_df['日期'] = pd.to_datetime([_.strftime('%Y-%m-%d') for _ in self.wa_df['日期時間']])
+        self.wa_df['井號'] = self.wa_df['井號'].astype(str)
         self.std_df = pd.read_excel(excel_dir, usecols=excel_cols)
         self.output_dir = output_dir
         self.std_names = excel_cols[2:]
@@ -114,11 +114,11 @@ class PlotWA():
         Set savefig to True when you wish to output the figures, which
         is in png format (200 dpi).
         """
-        if siteid in self.wa_df['井號'] and std_name in self.std_names:
+        if (siteid in self.wa_df['井號']) and (std_name in self.std_names):
             # collect the analytes having value in the standard (std_name) and '日期'
             cols = np.hstack([self.std_df.loc[~self.std_df[std_name].isna(), '項目'], '日期'])
             # select the data points of that siteid
-            X = self.wa_df[self.wa_df['井號'] == siteid]
+            X = self.wa_df[self.wa_df['井號'] == siteid].reset_index(drop=True)
             # pick up the site name
             site_name = X['井名'][0]
             # select the analytes both have values in the water quality dataset
@@ -164,6 +164,56 @@ class PlotWA():
         else:
             print('Both the siteid (井號) and std_name (法規名稱) are incorrect.')
 
+    def MarkbySTD(self, df, std_name):
+        """
+        df needs to be a pd.DataFrame containing at least siteid 
+        (井號, in string). Any extra columns will be output also after
+        marking. std_name (法規名稱) need to be strings which in the list
+        of cols_and_std.xlsx. df usually is the output of MarkbyEP.
+        The output is like in MarkbyEP, a pd.DataFrame consisting the information 
+        and the checked result of the input sites.
+        """
+        if std_name in self.std_names:
+            df['井號'] = df['井號'].astype(str)
+            check = True
+            check_list=[]
+            out_df = pd.DataFrame()
+            for siteid in df['井號'].unique():
+                # collect the analytes having value in the standard (std_name) and '日期'
+                cols = np.hstack([self.std_df.loc[~self.std_df[std_name].isna(), '項目'], '日期'])
+                # select the data points of that siteid
+                X = self.wa_df[self.wa_df['井號'] == siteid].reset_index(drop=True)
+                # There might be site not having measurement at all
+                if len(X) > 0:
+                    # select the analytes both have values in the water quality dataset
+                    # and in the standard.
+                    X = X.loc[:, X.columns.isin(cols)]
+                    X = X.loc[:, X.any(axis=0)].copy()
+                    # the last one is '日期'
+                    for analyte in X.columns[:-1]:
+                        std_value = self.std_df.loc[self.std_df['項目'] == analyte, std_name].values[0]
+                        # there are three different scenarios about the standard value
+                        if analyte == '氫離子濃度指數':
+                            lo_lim, up_lim = [float(_) for _ in std_value.split('-')]
+                            mask = (X[analyte] >= lo_lim) & (X[analyte] <= up_lim)
+                        elif analyte == '溶氧量':
+                            mask = X[analyte] > std_value
+                        else:
+                            mask = X[analyte] < std_value
+                        # if there more than 3 historical measurements not passing std
+                        # in an analyte, this siteid will be marked "no"
+                        if ~mask.sum() > 3: 
+                            check = False
+                else:
+                    print('{} has no water quality measurement'.format(siteid))
+                    check = False
+                check_list.append(check)
+                out_df = pd.concat([out_df, df[df['井號'] == siteid]], join='outer', axis=0)
+            #out_df = out_df.T
+            out_df['wa_check'] = check_list
+            return out_df
+        else:
+            print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
 # test
 if __name__ == '__main__':
     #plot = PlotWA()
@@ -173,9 +223,10 @@ if __name__ == '__main__':
     #df = merge_df[mask].copy()
     #df.to_csv('data/test.csv', index=False)
     df = pd.read_csv('data/test.csv')
-    select = Select()
-    #out_df, check_list = 
-    select.SitebyEP(df=df).to_csv('results/out.csv')
+    select = Waterlvl()
+    df = select.MarkbyEP(df=df)
     #print(out_df.shape, len(check_list))
     #with open('results/error.txt', 'w+', encoding='utf-8') as f:
     #    print(out_df, file=f)
+    select = Waterquality()
+    select.MarkbySTD(df=df, std_name='再生水用於工業用途水質基礎建議值一').to_csv('results/out.csv')
