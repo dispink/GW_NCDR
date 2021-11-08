@@ -218,9 +218,10 @@ class Waterquality():
                             mask = X[analyte] > std_value
                         else:
                             mask = X[analyte] < std_value
-                        # if there more than 3 historical measurements not passing std
-                        # in an analyte, this siteid will be marked "no"
-                        if (~mask).sum() > 3: 
+                        # if the ratio of passed measurement and total amount of values (exclude None)
+                        # is lee than 0.8 in an analyte, this siteid will be marked "no"
+                        pass_rate = mask.sum()/(~X[analyte].isna()).sum()
+                        if pass_rate < 0.8: 
                             check = False
                 else:
                     print('{} has no water quality measurement'.format(siteid))
