@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-plt.style.use(['seaborn-colorblind', 'seaborn-talk'])
+plt.style.use(['seaborn-colorblind'])
 plt.rcParams['figure.dpi'] = 200
 plt.rcParams['savefig.dpi'] = 200
 plt.rcParams['savefig.bbox'] = 'tight'
@@ -182,6 +182,154 @@ class Waterquality():
         else:
             print('Both the siteid (井號) and std_name (法規名稱) are incorrect.')
 
+    def plot_line(self, siteid, std_name, savefig=False):
+        """
+        This function is modified from plot() to draw line indicating
+        the values of standards.
+        siteid (井號) and std_name (法規名稱) need to be strings.
+        Set savefig to True when you wish to output the figures, which
+        is in png format (200 dpi).
+        """
+        import os
+
+        if (siteid in self.wa_df['井號'].unique()) and (std_name in self.std_names):
+            # collect the analytes having value in the standard (std_name) and '日期'
+            cols = np.hstack([self.std_df.loc[~self.std_df[std_name].isna(), '項目'], '日期'])
+            # select the data points of that siteid
+            X = self.wa_df[self.wa_df['井號'] == siteid].reset_index(drop=True)
+            # pick up the site name
+            site_name = X['井名'][0]
+            # select the analytes both have values in the water quality dataset
+            # and in the standard.
+            X = X.loc[:, X.columns.isin(cols)]
+            X = X.loc[:, X.any(axis=0)].copy()
+
+            # the last one is '日期'
+            for analyte in X.columns[:-1]:
+                #with open('results/error.txt', 'a', encoding='utf-8') as f:
+                #    print(analyte, file=f)
+                unit = self.std_df.loc[self.std_df['項目'] == analyte, '單位'].values[0]
+                std_value = self.std_df.loc[self.std_df['項目'] == analyte, std_name].values[0]
+
+                plt.figure(figsize=(7, 5))
+                plt.plot_date(X.loc[:, '日期'], X.loc[:, analyte], 
+                    c='C0', fmt='o', xdate=True, label=analyte)
+                xlims = plt.gca().get_xlim()
+                # there are three different scenarios about the standard value
+                if analyte == '氫離子濃度指數':
+                    std_lims = [float(_) for _ in std_value.split('-')]
+                    plt.hlines(std_lims, xmin = [xlims[0], xlims[0]], 
+                        xmax = [xlims[1], xlims[1]], linestyles='dashed', 
+                        colors='r', label='建議區間')
+
+                elif analyte == '溶氧量':
+                    plt.hlines(std_value, xmin=xlims[0], 
+                        xmax=xlims[1], linestyles='dashed', 
+                        colors='r', label='下限')
+                else:
+                    plt.hlines(std_value, xmin=xlims[0], 
+                        xmax=xlims[1], linestyles='dashed', 
+                        colors='r', label='上限')
+
+                plt.xlabel('日期')
+                plt.ylabel('{} ({})'.format(analyte, unit))
+                plt.legend(title='井名: {}'.format(site_name))
+                plt.suptitle('{}'.format(std_name))
+                plt.subplots_adjust(top=.93)
+                #plt.show()
+                # output figure when savefig is True
+                if savefig:
+                    if os.path.isdir(self.output_dir):
+                        pass
+                    else:
+                        os.mkdir(self.output_dir)
+                    plt.savefig('{}l_{}_{}_{}.png'.format(self.output_dir, siteid, std_name, analyte))
+        elif siteid in self.wa_df['井號']:
+            print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
+        elif std_name in self.std_names:
+            print('Please check the siteid (井號) again.')
+        else:
+            print('Both the siteid (井號) and std_name (法規名稱) are incorrect.')
+
+    def plot_A4(self, siteid, std_name, savefig=False):
+        """
+        This function is modified from plot_line() to draw figures
+        in a A4 sheet.
+        siteid (井號) and std_name (法規名稱) need to be strings.
+        Set savefig to True when you wish to output the figures, which
+        is in png format (200 dpi).
+        """
+        import os
+
+        if (siteid in self.wa_df['井號'].unique()) and (std_name in self.std_names):
+            # collect the analytes having value in the standard (std_name) and '日期'
+            cols = np.hstack([self.std_df.loc[~self.std_df[std_name].isna(), '項目'], '日期'])
+            # select the data points of that siteid
+            X = self.wa_df[self.wa_df['井號'] == siteid].reset_index(drop=True)
+            # pick up the site name
+            site_name = X['井名'][0]
+            # select the analytes both have values in the water quality dataset
+            # and in the standard.
+            X = X.loc[:, X.columns.isin(cols)]
+            X = X.loc[:, X.any(axis=0)].copy()
+
+            # the last one is '日期'
+            analytes = X.columns[:-1]
+            fig_amount = len(analytes)//6 + 1
+            for fig_idx in range(fig_amount):
+                # the fig size is slightly smaller than A4 
+                # (8.27, 11.69) because the fig will be shrinked
+                # when pasting into word.
+                fig, axes = plt.subplots(3, 2, figsize=(8, 11.2))
+                for analyte, ax in zip(analytes[fig_idx*6: fig_idx*6+6], axes.ravel()):
+                    #with open('results/error.txt', 'a', encoding='utf-8') as f:
+                    #    print(analyte, file=f)
+                    unit = self.std_df.loc[self.std_df['項目'] == analyte, '單位'].values[0]
+                    std_value = self.std_df.loc[self.std_df['項目'] == analyte, std_name].values[0]
+
+                    ax.plot_date(X.loc[:, '日期'], X.loc[:, analyte], 
+                        c='C0', fmt='o', xdate=True, label=analyte)
+                    xlims = ax.get_xlim()
+                    # there are three different scenarios about the standard value
+                    if analyte == '氫離子濃度指數':
+                        std_lims = [float(_) for _ in std_value.split('-')]
+                        ax.hlines(std_lims, xmin = [xlims[0], xlims[0]], 
+                            xmax = [xlims[1], xlims[1]], linestyles='dashed', 
+                            colors='r', label='建議區間')
+
+                    elif analyte == '溶氧量':
+                        ax.hlines(std_value, xmin=xlims[0], 
+                            xmax=xlims[1], linestyles='dashed', 
+                            colors='r', label='下限')
+                    else:
+                        ax.hlines(std_value, xmin=xlims[0], 
+                            xmax=xlims[1], linestyles='dashed', 
+                            colors='r', label='上限')
+
+                    ax.set_xlabel('日期')
+                    ax.set_ylabel('{} ({})'.format(analyte, unit))
+                    ax.legend()
+                    plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+                    #plt.xticks(rotation=30) 
+                    #plt.show()
+                #fig.autofmt_xdate(rotation=30)    
+                fig.suptitle('{}, {}'.format(site_name, std_name))
+                fig.subplots_adjust(top=.96)
+                # output figure when savefig is True
+                if savefig:
+                    if os.path.isdir(self.output_dir):
+                        pass
+                    else:
+                        os.mkdir(self.output_dir)
+                    fig.savefig('{}{}_{}_{}.png'.format(self.output_dir, siteid, std_name, fig_idx))
+        elif siteid in self.wa_df['井號']:
+            print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
+        elif std_name in self.std_names:
+            print('Please check the siteid (井號) again.')
+        else:
+            print('Both the siteid (井號) and std_name (法規名稱) are incorrect.')
+
+
     def MarkbySTD(self, df, std_name):
         """
         df needs to be a pd.DataFrame containing at least siteid 
@@ -236,7 +384,7 @@ class Waterquality():
 # test
 if __name__ == '__main__':
     select = Waterquality()
-    select.plot(siteid='7010111', std_name='飲用水水源水質標準第五條', savefig=False)
+    select.plot_A4(siteid='4413', std_name='地下水污染監測標準第一類', savefig=True)
     #merge_df = pd.read_hdf('data/database_ZAF_clean_gps_20211104.hd5', key='wl')
     #mask = (merge_df['日期時間']>='2021-05-01') & (merge_df['日期時間']<'2021-05-15')
     #df = merge_df[mask].copy()
