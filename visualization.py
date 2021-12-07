@@ -243,7 +243,7 @@ class Waterquality():
                         pass
                     else:
                         os.mkdir(self.output_dir)
-                    plt.savefig('{}l_{}_{}_{}.png'.format(self.output_dir, siteid, std_name, analyte))
+                    plt.savefig('{}_{}_{}_{}.png'.format(self.output_dir, siteid, std_name, analyte))
         elif siteid in self.wa_df['井號']:
             print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
         elif std_name in self.std_names:
@@ -280,7 +280,7 @@ class Waterquality():
                 # the fig size is slightly smaller than A4 
                 # (8.27, 11.69) because the fig will be shrinked
                 # when pasting into word.
-                fig, axes = plt.subplots(3, 2, figsize=(8, 11.2))
+                fig, axes = plt.subplots(3, 2, figsize=(8, 11.2), gridspec_kw={'width_ratios': [1, 1]})
                 for analyte, ax in zip(analytes[fig_idx*6: fig_idx*6+6], axes.ravel()):
                     #with open('results/error.txt', 'a', encoding='utf-8') as f:
                     #    print(analyte, file=f)
@@ -315,13 +315,16 @@ class Waterquality():
                 #fig.autofmt_xdate(rotation=30)    
                 fig.suptitle('{}, {}'.format(site_name, std_name))
                 fig.subplots_adjust(top=.96)
+                plt.tight_layout()
                 # output figure when savefig is True
                 if savefig:
-                    if os.path.isdir(self.output_dir):
+                    if os.path.isdir('{}batch/'.format(self.output_dir)):
                         pass
                     else:
-                        os.mkdir(self.output_dir)
-                    fig.savefig('{}{}_{}_{}.png'.format(self.output_dir, siteid, std_name, fig_idx))
+                        os.mkdir('{}batch/'.format(self.output_dir))
+                    plt.savefig('{}batch/{}_{}_{}.png'.format(self.output_dir, siteid, std_name, fig_idx))
+                # close the current figure to avoid memery consuming
+                plt.close(fig)
         elif siteid in self.wa_df['井號']:
             print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
         elif std_name in self.std_names:
@@ -381,10 +384,18 @@ class Waterquality():
             return out_df
         else:
             print('Please input the std_name (法規名稱) in the list: {}'.format(self.std_names))
+
+    def run(self):
+        select = Waterquality()
+        for siteid in self.wa_df['井號'].unique():
+            for std_name in self.std_names:
+                select.plot_A4(siteid=siteid, std_name=std_name, savefig=True)
+
 # test
 if __name__ == '__main__':
     select = Waterquality()
-    select.plot_A4(siteid='4413', std_name='地下水污染監測標準第一類', savefig=True)
+    #select.plot_A4(siteid='4413', std_name='地下水污染監測標準第一類', savefig=True)
+    select.run()
     #merge_df = pd.read_hdf('data/database_ZAF_clean_gps_20211104.hd5', key='wl')
     #mask = (merge_df['日期時間']>='2021-05-01') & (merge_df['日期時間']<'2021-05-15')
     #df = merge_df[mask].copy()
